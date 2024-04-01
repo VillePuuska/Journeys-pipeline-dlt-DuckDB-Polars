@@ -29,7 +29,9 @@ for i in range(3):
         success = True
         break
     except PipelineStepFailed as e:
-        print(f"Pipeline failed. Maybe DuckDB is locked? Waiting and trying again. Try #{i+1}.")
+        print(
+            f"Pipeline failed. Maybe DuckDB is locked? Waiting and trying again. Try #{i+1}."
+        )
         print("Actual error message:")
         print("-" * 50)
         print(e)
@@ -38,7 +40,22 @@ for i in range(3):
         time.sleep(5.0)
 
 if not success:
-    raise Exception("Failed to load data into DuckDB.")
+    pipeline_fallback = dlt.pipeline(
+        pipeline_name="ingest_pipe_fallback",
+        pipelines_dir="pipes",
+        destination="duckdb",
+        dataset_name="bronze",
+        full_refresh=True,
+    )
+
+    load_info = pipeline_fallback.run(
+        data=response.json()["body"],
+        table_name="journeys_data",
+    )
+
+    print("*" * 50)
+    print("Failed to load data into primary DuckDB-file. Loaded to fallback instead.")
+    print("*" * 50)
 
 print(pipeline.last_trace.last_extract_info)
 print("-" * 10)
