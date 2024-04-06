@@ -158,7 +158,9 @@ new_row_count = len(new_df)
 print(f"# of new rows: {new_row_count}")
 print("*" * 50)
 
-print(new_df)
+with pl.Config() as cfg:
+    cfg.set_tbl_cols(new_df.width)
+    print(new_df)
 
 # Insert new rows to silver table and the latest load_id to the metadata table in a single transaction.
 with duckdb.connect(TARGET_DB) as db:
