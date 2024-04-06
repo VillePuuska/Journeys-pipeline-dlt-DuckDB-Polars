@@ -63,7 +63,9 @@ with duckdb.connect(TARGET_DB) as db:
 
     # If we're resetting the tables or the metadata table did not yet exist,
     # set last_load to 0 to load all data.
-    if last_load is None or (RESET_TABLES is not None and RESET_TABLES.lower() == "true"):
+    if last_load is None or (
+        RESET_TABLES is not None and RESET_TABLES.lower() == "true"
+    ):
         last_load = 0
     else:
         last_load = float(last_load)
@@ -103,14 +105,7 @@ new_df = (
         .cast(pl.Float64)
         .alias("latitude"),
         pl.col("monitored_vehicle_journey__speed").cast(pl.Float32).alias("speed"),
-        (
-            pl.col("monitored_vehicle_journey__origin_aimed_departure_time").str.slice(
-                0, 2
-            )
-            + pl.col(
-                "monitored_vehicle_journey__origin_aimed_departure_time"
-            ).str.slice(2)
-        )
+        pl.col("monitored_vehicle_journey__origin_aimed_departure_time")
         .str.strptime(dtype=pl.Time, format="%H%M")
         .alias("origin_aimed_departure_time"),
         pl.struct("monitored_vehicle_journey__delay")
