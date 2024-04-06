@@ -15,7 +15,8 @@ RESET_TABLES = os.getenv("RESET_TABLES")
 
 METADATA_TABLE = "loads"
 
-TARGET_TABLE_SCHEMA = """
+TARGET_TABLE_PK = "date, time, line, direction, origin_aimed_departure_time"
+TARGET_TABLE_SCHEMA = f"""
 date DATE,
 time TIME,
 line VARCHAR,
@@ -30,6 +31,7 @@ latitude DOUBLE,
 speed REAL,
 origin_aimed_departure_time TIME,
 delay BIGINT,
+PRIMARY KEY ({TARGET_TABLE_PK})
 """
 
 if None in [
@@ -90,10 +92,6 @@ if len(source_df) == 0:
     print("No new data to load.")
     sys.exit(0)
 
-new_row_count = len(source_df)
-print(f"# of new rows: {new_row_count}")
-print("*" * 50)
-
 new_df = (
     source_df.rename(
         {
@@ -153,6 +151,13 @@ new_df = (
     ]
 )
 
+# Deduplicate new data and drop nulls.
+new_df = new_df.unique(TARGET_TABLE_PK.split(", ")).drop_nulls()
+
+new_row_count = len(new_df)
+print(f"# of new rows: {new_row_count}")
+print("*" * 50)
+
 print(new_df)
 
 # Insert new rows to silver table and the latest load_id to the metadata table in a single transaction.
@@ -161,5 +166,11 @@ with duckdb.connect(TARGET_DB) as db:
     db.sql(
         f"""INSERT INTO {TARGET_SCHEMA}.{METADATA_TABLE} (load_id, loaded_rows)
         VALUES ({source_df["_dlt_load_id"].max()}, {new_row_count})"""
+    )
+    all_columns = ", ".join(new_df.columns)
+    db.sql(
+        f"""INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} ({all_columns})
+        FROM new_df
+        ON CONFLICT ({TARGET_TABLE_PK}) DO NOTHING"""
     )
     db.sql("COMMIT")
