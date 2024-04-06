@@ -50,30 +50,20 @@ if None in [
 # Get timestamp of the last load from bronze to silver.
 with duckdb.connect(TARGET_DB) as db:
     db.sql(f"CREATE SCHEMA IF NOT EXISTS {TARGET_SCHEMA}")
-
-    # If we're resetting tables, we recreate the tables and we set the env variable to false afterwards.
-    if RESET_TABLES is not None and RESET_TABLES.lower() == "true":
-        print("Resetting silver tables.")
-        print("*" * 50)
-        db.sql(
-            f"CREATE OR REPLACE TABLE {TARGET_SCHEMA}.{METADATA_TABLE} (load_id VARCHAR, loaded_rows INTEGER)"
-        )
-        db.sql(
-            f"CREATE OR REPLACE TABLE {TARGET_SCHEMA}.{TARGET_TABLE} ({TARGET_TABLE_SCHEMA})"
-        )
-    else:
-        db.sql(
-            f"CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{METADATA_TABLE} (load_id VARCHAR, loaded_rows INTEGER)"
-        )
-        db.sql(
-            f"CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TARGET_TABLE} ({TARGET_TABLE_SCHEMA})"
-        )
+    db.sql(
+        f"CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{METADATA_TABLE} (load_id VARCHAR, loaded_rows INTEGER)"
+    )
+    db.sql(
+        f"CREATE TABLE IF NOT EXISTS {TARGET_SCHEMA}.{TARGET_TABLE} ({TARGET_TABLE_SCHEMA})"
+    )
 
     last_load = db.sql(
         f"SELECT MAX(load_id) FROM {TARGET_SCHEMA}.{METADATA_TABLE}"
     ).fetchall()[0][0]
 
-    if last_load is None:
+    # If we're resetting the tables or the metadata table did not yet exist,
+    # set last_load to 0 to load all data.
+    if last_load is None or (RESET_TABLES is not None and RESET_TABLES.lower() == "true"):
         last_load = 0
     else:
         last_load = float(last_load)
@@ -178,13 +168,24 @@ print("*" * 50)
 
 print(new_df)
 
+# Reset/recreate the tables if required.
 # Insert new rows to silver table.
 # Insert latest load_id and number of rows in dataframe to the metadata table.
-# All inserts are done in a single transaction.
+# Everything is done in a single transaction.
 # NOTE: logged number of rows might not be the number of new rows since the dataframe
 # is merged into the existing table. There might be rows dropped/deduplicated.
 with duckdb.connect(TARGET_DB) as db:
     db.sql("BEGIN TRANSACTION")
+    # If we're resetting tables, we recreate the tables inside the transaction.
+    if RESET_TABLES is not None and RESET_TABLES.lower() == "true":
+        print("Resetting silver tables.")
+        print("*" * 50)
+        db.sql(
+            f"CREATE OR REPLACE TABLE {TARGET_SCHEMA}.{METADATA_TABLE} (load_id VARCHAR, loaded_rows INTEGER)"
+        )
+        db.sql(
+            f"CREATE OR REPLACE TABLE {TARGET_SCHEMA}.{TARGET_TABLE} ({TARGET_TABLE_SCHEMA})"
+        )
     db.sql(
         f"""INSERT INTO {TARGET_SCHEMA}.{METADATA_TABLE} (load_id, loaded_rows)
         VALUES ({source_df["_dlt_load_id"].max()}, {new_row_count})"""
