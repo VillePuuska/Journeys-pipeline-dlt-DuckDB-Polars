@@ -151,18 +151,38 @@ new_df = (
     ]
 )
 
-# Deduplicate new data and drop nulls.
-new_df = new_df.unique(TARGET_TABLE_PK.split(", ")).drop_nulls()
+# Set Polars to print all columns of the dataframe.
+cfg = pl.Config()
+cfg.set_tbl_cols(new_df.width)
+
+# Drop and log rows with nulls.
+nulls = new_df.filter(pl.any_horizontal(pl.all().is_null()))
+if len(nulls) > 0:
+    new_df = new_df.drop_nulls()
+    print(f"Dropping {len(nulls)} rows with nulls values:")
+    print(nulls)
+    print("*" * 50)
+
+# Deduplicate rows by PK.
+pk_cols = TARGET_TABLE_PK.split(", ")
+duplicates = new_df.filter(pl.struct(pk_cols).is_duplicated())
+if len(duplicates) > 0:
+    new_df = new_df.unique(pk_cols)
+    print(f"Deduplicating {len(duplicates)} rows:")
+    print(duplicates.sort(duplicates.columns))
+    print("*" * 50)
 
 new_row_count = len(new_df)
 print(f"# of new rows: {new_row_count}")
 print("*" * 50)
 
-with pl.Config() as cfg:
-    cfg.set_tbl_cols(new_df.width)
-    print(new_df)
+print(new_df)
 
-# Insert new rows to silver table and the latest load_id to the metadata table in a single transaction.
+# Insert new rows to silver table.
+# Insert latest load_id and number of rows in dataframe to the metadata table.
+# All inserts are done in a single transaction.
+# NOTE: logged number of rows might not be the number of new rows since the dataframe
+# is merged into the existing table. There might be rows dropped/deduplicated.
 with duckdb.connect(TARGET_DB) as db:
     db.sql("BEGIN TRANSACTION")
     db.sql(
