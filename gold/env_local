@@ -1,0 +1,6 @@
+# To export env variables defined in an env file like this, run: export $(grep -v '^#' env_local | xargs)
+
+SOURCE_DB=/workspaces/Journeys-pipeline-dlt-DuckDB-Polars/silver/cleaned.duckdb
+SOURCE_SCHEMA=silver
+SOURCE_TABLE=journeys_data
+TARGET_DIR=/workspaces/Journeys-pipeline-dlt-DuckDB-Polars/gold/data/
