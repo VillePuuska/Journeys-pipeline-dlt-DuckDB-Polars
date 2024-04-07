@@ -166,3 +166,6 @@ pipes/
 
 # Scripts for checking the DuckDB databases while developing.
 check_result*
+
+# Data directory for mounting to containers.
+data/
