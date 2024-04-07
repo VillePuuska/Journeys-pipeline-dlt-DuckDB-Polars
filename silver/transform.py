@@ -62,13 +62,11 @@ with duckdb.connect(TARGET_DB) as db:
     ).fetchall()[0][0]
 
     # If we're resetting the tables or the metadata table did not yet exist,
-    # set last_load to 0 to load all data.
+    # set last_load to "0" to load all data.
     if last_load is None or (
         RESET_TABLES is not None and RESET_TABLES.lower() == "true"
     ):
-        last_load = 0
-    else:
-        last_load = float(last_load)
+        last_load = "0"
 
 print("Latest load:")
 print(last_load)
@@ -77,7 +75,7 @@ print("*" * 50)
 with duckdb.connect(SOURCE_DB) as db:
     source_df = db.sql(
         f"""FROM {SOURCE_SCHEMA}.{SOURCE_TABLE}
-        WHERE _dlt_load_id > {last_load}"""
+        WHERE _dlt_load_id > {last_load}::VARCHAR"""
     ).pl()
 
 if len(source_df) == 0:
