@@ -3,6 +3,7 @@ import polars as pl
 import os
 import sys
 import deltalake
+import datetime
 
 SOURCE_DB = os.getenv("SOURCE_DB")
 SOURCE_SCHEMA = os.getenv("SOURCE_SCHEMA")
@@ -23,12 +24,31 @@ if None in [
 TARGET_TABLE = "journeys_data"
 TARGET_PATH = os.path.join(TARGET_DIR, TARGET_TABLE)
 
+try:
+    max_update = pl.read_delta(TARGET_PATH).select("update_time").max().item()
+except FileNotFoundError:
+    max_update = datetime.datetime.fromisoformat("1970-01-01 00:00:00.000")
+except deltalake._internal.TableNotFoundError:
+    max_update = datetime.datetime.fromisoformat("1970-01-01 00:00:00.000")
+
 with duckdb.connect(SOURCE_DB) as db:
     source_df = (
-        db.sql(f"FROM {SOURCE_SCHEMA}.{SOURCE_TABLE}")
+        db.sql(
+            f"FROM {SOURCE_SCHEMA}.{SOURCE_TABLE} WHERE update_time > '{max_update}'"
+        )
         .pl()
         .cast({"time": pl.String, "origin_aimed_departure_time": pl.String})
     )
+
+if len(source_df) == 0:
+    print("No new data.")
+    sys.exit(0)
+
+with pl.Config() as cfg:
+    cfg.set_tbl_cols(source_df.width)
+    print("Loading new data from silver:")
+    print(source_df)
+    print("*" * 50)
 
 try:
     (
@@ -57,5 +77,5 @@ except deltalake._internal.TableNotFoundError:
         mode="overwrite",
     )
 
-
-print(pl.read_delta(TARGET_PATH).count())
+row_count = pl.read_delta(TARGET_PATH).select("date").count().item()
+print(f"New row count: {row_count}")
