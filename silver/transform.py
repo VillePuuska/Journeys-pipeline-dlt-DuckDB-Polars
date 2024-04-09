@@ -2,6 +2,7 @@ import duckdb
 import polars as pl
 import os
 import sys
+import datetime
 from utils.format import delay_sec
 
 SOURCE_DB = os.getenv("SOURCE_DB")
@@ -31,6 +32,7 @@ latitude DOUBLE,
 speed REAL,
 origin_aimed_departure_time TIME,
 delay BIGINT,
+update_time TIMESTAMPTZ,
 PRIMARY KEY ({TARGET_TABLE_PK})
 """
 
@@ -114,6 +116,7 @@ new_df = (
             return_dtype=pl.Int64,
         )
         .alias("delay"),
+        update_time=datetime.datetime.now(),
     )
 ).select(
     [
@@ -131,6 +134,7 @@ new_df = (
         "speed",
         "origin_aimed_departure_time",
         "delay",
+        "update_time",
     ]
 )
 
