@@ -1,4 +1,4 @@
 duckdb==0.10.1
-polars==0.20
+polars==0.20.18
 pyarrow==15.0.2
 deltalake==0.16.4

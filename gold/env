@@ -1,0 +1,4 @@
+SOURCE_DB=cleaned.duckdb
+SOURCE_SCHEMA=silver
+SOURCE_TABLE=journeys_data
+TARGET_DIR=.
