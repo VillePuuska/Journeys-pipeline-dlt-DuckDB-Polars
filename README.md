@@ -21,6 +21,8 @@ Steps for building and running the stages as Docker containers:
   - Build the container image in `/gold` with e.g.: `docker build -t export:0.1 .`
   - Run the container with the data directory bind mounted again. Include an env-file to pass the environment variables needed. For example, if your data directory is directly under the root directory of this repo, then you can use the env-file in `/gold` by running `docker run --rm --mount type=bind,src="$(pwd)",target=/data --env-file ../gold/env export:0.1`
   - The container prints out info about the data exported from the silver DuckDB database to the final Delta table. You might want to pipe this to a log file.
+- Cleaning up the final Delta table:
+  - TODO (`clean_delta_table/optimize_and_vacuum.py`)
 
 ---
 
