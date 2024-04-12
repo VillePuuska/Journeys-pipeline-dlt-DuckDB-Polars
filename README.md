@@ -26,5 +26,52 @@ Steps for building and running the stages as Docker containers:
 
 ---
 
-Steps for getting Argo running locally and running the pipeline:
-- TODO
+Steps for getting Argo running in Minikube locally and running the pipeline:
+- install Minikube:
+```
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube && rm minikube-linux-amd64
+```
+- start Minikube:
+```
+minikube start
+```
+- install Argo CLI (not needed if using Argo UI):
+```
+curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/argo-linux-amd64.gz
+gunzip argo-linux-amd64.gz
+chmod +x argo-linux-amd64
+sudo mv ./argo-linux-amd64 /usr/local/bin/argo
+```
+- install and start Argo:
+```
+kubectl create namespace argo
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/quick-start-minimal.yaml
+```
+- if you want to use the Argo UI, forward the port:
+```
+kubectl -n argo port-forward service/argo-server 2746:2746
+```
+- to build the images in a way that k8s can use them locally, first run
+```
+eval $(minikube docker-env)
+```
+- after the above command, build the images in the same shell session
+- cd to the `/data` directory:
+```
+cd /workspaces/Journeys-pipeline-dlt-DuckDB-Polars/data
+```
+- create secrets in k8s from the env files in `/silver` and `/gold`:
+```
+kubectl create secret generic transform-env --from-env-file=../silver/env --namespace=argo
+kubectl create secret generic export-env --from-env-file=../gold/env --namespace=argo
+```
+- create persistent volume and claim:
+```
+kubectl apply -n argo -f ../argo/persistent-volume.yaml
+kubectl apply -n argo -f ../argo/persistent-volume-claim.yaml
+```
+- run and monitor the workflow for the pipeline assuming the workflow yaml-file is in `../argo/elt-workflow.yaml`:
+```
+argo submit -n argo --watch ../argo/elt-workflow.yaml
+```
