@@ -57,21 +57,23 @@ kubectl -n argo port-forward service/argo-server 2746:2746
 eval $(minikube docker-env)
 ```
 - after the above command, build the images in the same shell session
-- cd to the `/data` directory:
-```
-cd /workspaces/Journeys-pipeline-dlt-DuckDB-Polars/data
-```
 - create secrets in k8s from the env files in `/silver` and `/gold`:
 ```
-kubectl create secret generic transform-env --from-env-file=../silver/env --namespace=argo
-kubectl create secret generic export-env --from-env-file=../gold/env --namespace=argo
+kubectl create secret generic transform-env --from-env-file=silver/env --namespace=argo
+kubectl create secret generic export-env --from-env-file=gold/env --namespace=argo
 ```
 - create persistent volume and claim:
 ```
-kubectl apply -n argo -f ../argo/persistent-volume.yaml
-kubectl apply -n argo -f ../argo/persistent-volume-claim.yaml
+kubectl apply -n argo -f argo/persistent-volume.yaml
+kubectl apply -n argo -f argo/persistent-volume-claim.yaml
 ```
 - run and monitor the workflow for the pipeline assuming the workflow yaml-file is in `../argo/elt-workflow.yaml`:
 ```
-argo submit -n argo --watch ../argo/elt-workflow.yaml
+argo submit -n argo --watch argo/elt-workflow.yaml
 ```
+- after the run, you can see the logged output with:
+```
+argo logs -n argo @latest
+```
+
+**NOTE**: The data is not persisted in a local directory. It is persisted in Minikube's VM, in the directory `/data/pipeline-data`. It should be persisted through restarts. To get access to the persisted files, you can ssh into the VM with `minikube ssh`, or you could create a pod that claims the volume and then access the pod to inspect the files.
