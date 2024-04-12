@@ -31,7 +31,7 @@ except FileNotFoundError:
 except deltalake._internal.TableNotFoundError:
     max_update = datetime.datetime.fromisoformat("1970-01-01 00:00:00.000")
 
-with duckdb.connect(SOURCE_DB) as db:
+with duckdb.connect(SOURCE_DB, read_only=True) as db:
     source_df = (
         db.sql(
             f"FROM {SOURCE_SCHEMA}.{SOURCE_TABLE} WHERE update_time > '{max_update}'"

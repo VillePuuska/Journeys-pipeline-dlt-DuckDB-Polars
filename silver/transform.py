@@ -74,7 +74,7 @@ print("Latest load:")
 print(last_load)
 print("*" * 50)
 
-with duckdb.connect(SOURCE_DB) as db:
+with duckdb.connect(SOURCE_DB, read_only=True) as db:
     source_df = db.sql(
         f"""FROM {SOURCE_SCHEMA}.{SOURCE_TABLE}
         WHERE _dlt_load_id > {last_load}::VARCHAR"""
