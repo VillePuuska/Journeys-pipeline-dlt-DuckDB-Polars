@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: elt-scheduled-workflow
+spec:
+  schedule: "*/2 * * * *" # Every two minutes
+  concurrencyPolicy: "Allow"
+  workflowSpec:
+    entrypoint: dag
+    volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: pipeline-volume-claim
+    templates:
+    - name: ingest
+      container:
+        image: ingest:0.1
+        imagePullPolicy: "Never"
+        command: [ "python", "/pipeline/ingest.py" ]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+    - name: transform
+      container:
+        image: transform:0.1
+        imagePullPolicy: "Never"
+        command: [ "python", "/transformations/transform.py" ]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        envFrom:
+        - secretRef:
+            name: transform-env
+    - name: export
+      container:
+        image: export:0.1
+        imagePullPolicy: "Never"
+        command: [ "python", "/export/export.py" ]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        envFrom:
+        - secretRef:
+            name: export-env
+    - name: dag
+      dag:
+        tasks:
+        - name: ingest-task
+          template: ingest
+        - name: transform-task
+          dependencies: [ingest-task]
+          template: transform
+        - name: export-task
+          dependencies: [transform-task]
+          template: export
