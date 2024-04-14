@@ -7,6 +7,25 @@ Each stage can be run as a standalone script or packaged as its own Docker conta
 
 ---
 
+## Pipeline steps
+
+- Step 1:
+  - GET request data from JourneysAPI's Vehicle Activity endpoint.
+  - Denormalize and load the response to a DuckDB database with dlt.
+  - Retry loading three times. If loading fails all three times, try to load into a fallback DuckDB database instead. Main reason why loading can fail is the DuckDB database file being locked due to another process accessing it.
+- Step 2:
+  - Check last load id from a metadata table and get all new rows from the previous layer.
+  - Rename columns, fix datatypes, parse departure times from `HHMM` format to polars.Time datatype, parse delays from `-P0Y0M0DT0H3M20.000S` format to seconds in polars.Int64 datatype, add current timestamp as `update_time`, and drop unneeded columns.
+  - In a single transaction:
+    - Recreate metadata table and target table if corresponding environment variable is set.
+    - Upsert new data and insert new load id.
+- Step 3:
+  - Get max `update_time` from target Delta table and get all newer rows from previous stage.
+  - Merge new data to taget Delta table.
+  - TODO: Insert new dimensions to Delta tables for dimensions.
+
+---
+
 ## Run pipeline once with Argo (and Minikube)
 
 Quick setup with shell scripts to get Argo running in Minikube locally:
@@ -148,5 +167,7 @@ Steps for building the images and running the stages one at a time `docker run`:
 
 ## TODO
 
-- Add cleaning up the final Delta table to the pipeline `clean_delta_table/optimize_and_vacuum.py`
-- Add data quality monitoring
+- Add dimensions to corresponding Delta tables.
+- Add cleaning up the final Delta table to the pipeline `clean_delta_table/optimize_and_vacuum.py`.
+- Add data quality monitoring.
+- Add another branch to pipeline for utilizing data for bus stops.
