@@ -2,8 +2,7 @@ import duckdb
 import polars as pl
 import os
 import sys
-import datetime
-from utils.format import delay_sec
+from utils.transformations import transform_bus_data, drop_nulls, deduplicate
 
 SOURCE_DB = os.getenv("SOURCE_DB")
 SOURCE_SCHEMA = os.getenv("SOURCE_SCHEMA")
@@ -84,86 +83,23 @@ if len(source_df) == 0:
     print("No new data to load.")
     sys.exit(0)
 
-new_df = (
-    source_df.rename(
-        {
-            "monitored_vehicle_journey__line_ref": "line",
-            "monitored_vehicle_journey__operator_ref": "operator",
-            "monitored_vehicle_journey__vehicle_ref": "vehicle",
-            "monitored_vehicle_journey__journey_pattern_ref": "journey_pattern",
-            "monitored_vehicle_journey__origin_short_name": "origin_short_name",
-            "monitored_vehicle_journey__destination_short_name": "destination_short_name",
-            "monitored_vehicle_journey__direction_ref": "direction",
-        }
-    ).with_columns(
-        pl.col("recorded_at_time").cast(pl.Date).alias("date"),
-        pl.col("recorded_at_time").cast(pl.Time).alias("time"),
-        pl.col("monitored_vehicle_journey__vehicle_location__longitude")
-        .cast(pl.Float64)
-        .alias("longitude"),
-        pl.col("monitored_vehicle_journey__vehicle_location__latitude")
-        .cast(pl.Float64)
-        .alias("latitude"),
-        pl.col("monitored_vehicle_journey__speed").cast(pl.Float32).alias("speed"),
-        pl.col("monitored_vehicle_journey__origin_aimed_departure_time")
-        .str.strptime(dtype=pl.Time, format="%H%M")
-        .alias("origin_aimed_departure_time"),
-        pl.struct("monitored_vehicle_journey__delay")
-        .map_batches(
-            lambda x: pl.Series(
-                map(delay_sec, x.struct.field("monitored_vehicle_journey__delay"))
-            ),
-            return_dtype=pl.Int64,
-        )
-        .alias("delay"),
-        update_time=datetime.datetime.now(),
-    )
-).select(
-    [
-        "date",
-        "time",
-        "line",
-        "operator",
-        "vehicle",
-        "journey_pattern",
-        "origin_short_name",
-        "destination_short_name",
-        "direction",
-        "longitude",
-        "latitude",
-        "speed",
-        "origin_aimed_departure_time",
-        "delay",
-        "update_time",
-    ]
-)
-
-# Set Polars to print all columns of the dataframe.
-cfg = pl.Config()
-cfg.set_tbl_cols(new_df.width)
+# Transform the bronze data to silver format.
+new_df = transform_bus_data(source_df=source_df)
 
 # Drop and log rows with nulls.
-nulls = new_df.filter(pl.any_horizontal(pl.all().is_null()))
-if len(nulls) > 0:
-    new_df = new_df.drop_nulls()
-    print(f"Dropping {len(nulls)} rows with nulls values:")
-    print(nulls)
-    print("*" * 50)
+new_df = drop_nulls(source_df=new_df, logging=True)
 
 # Deduplicate rows by PK.
 pk_cols = TARGET_TABLE_PK.split(", ")
-duplicates = new_df.filter(pl.struct(pk_cols).is_duplicated())
-if len(duplicates) > 0:
-    new_df = new_df.unique(pk_cols)
-    print(f"Deduplicating {len(duplicates)} rows:")
-    print(duplicates.sort(duplicates.columns))
-    print("*" * 50)
+new_df = deduplicate(source_df=new_df, pk_cols=pk_cols, logging=True)
 
 new_row_count = len(new_df)
 print(f"# of new rows: {new_row_count}")
 print("*" * 50)
 
-print(new_df)
+with pl.Config() as cfg:
+    cfg.set_tbl_cols(new_df.width)
+    print(new_df)
 
 # Reset/recreate the tables if required.
 # Insert new rows to silver table.
