@@ -165,6 +165,12 @@ Steps for building the images and running the stages one at a time `docker run`:
 
 ---
 
+Run unit tests for silver transformations:
+- You need a python environment with `pytest` and `silver/requirements.txt` installed.
+- `cd` into `silver/` and run `python -m pytest ..`
+
+---
+
 ## TODO
 
 - Add dimensions to corresponding Delta tables.
